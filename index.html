@@ -1,1321 +1,338 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BondChain — On-Chain Bond Marketplace</title>
-<script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-/* ── Reset & Root ─────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:        #070910;
-  --bg1:       #0b0e18;
-  --bg2:       #0f1320;
-  --bg3:       #141929;
-  --bg4:       #1a2135;
-
-  --border:    #1c2336;
-  --border2:   #263048;
-  --border3:   #334060;
-
-  --gold:      #c9a84c;
-  --gold-dim:  #8a6e2e;
-  --gold-bg:   rgba(201,168,76,0.08);
-  --gold-bg2:  rgba(201,168,76,0.14);
-
-  --green:     #2dd4a0;
-  --green-bg:  rgba(45,212,160,0.1);
-  --red:       #e05858;
-  --red-bg:    rgba(224,88,88,0.1);
-  --blue:      #5b9cf6;
-  --blue-bg:   rgba(91,156,246,0.1);
-
-  --t0: #eef2ff;
-  --t1: #8896b3;
-  --t2: #404d68;
-  --t3: #252f45;
-
-  --serif: 'Cormorant Garamond', Georgia, serif;
-  --mono:  'DM Mono', 'Courier New', monospace;
-
-  --r:  8px;
-  --rl: 14px;
-  --rx: 20px;
-}
-
-html { scroll-behavior: smooth; }
-body {
-  background: var(--bg);
-  color: var(--t0);
-  font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.6;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* ── Scrollbar ────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
-
-/* ── Nav ──────────────────────────────────────────────────────────────── */
-#nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  display: flex; align-items: center; gap: 4px;
-  height: 58px; padding: 0 32px;
-  background: rgba(7,9,16,0.92);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
-}
-.nav-logo {
-  font-family: var(--serif); font-size: 22px; font-weight: 500;
-  color: var(--gold); letter-spacing: 0.02em;
-  margin-right: auto; cursor: pointer;
-  display: flex; align-items: center; gap: 10px;
-}
-.nav-logo-mark {
-  width: 30px; height: 30px; border: 1px solid var(--gold-dim);
-  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: var(--gold);
-}
-.nav-link {
-  padding: 6px 14px; border-radius: var(--r); border: none;
-  background: transparent; color: var(--t1);
-  font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
-  cursor: pointer; transition: 0.15s; display: none;
-}
-.nav-link:hover { color: var(--t0); background: var(--bg3); }
-.nav-link.active { color: var(--gold); background: var(--gold-bg); }
-.nav-link.visible { display: inline-flex; align-items: center; gap: 6px; }
-
-.wallet-btn {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 16px; margin-left: 12px;
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: var(--rx); cursor: pointer; transition: 0.15s;
-  font-family: var(--mono); font-size: 12px; color: var(--t1);
-}
-.wallet-btn:hover { border-color: var(--gold-dim); color: var(--t0); }
-.wallet-btn.connected { border-color: var(--green); color: var(--green); }
-.w-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--t2); flex-shrink: 0; transition: 0.3s;
-}
-.w-dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
-
-/* ── Pages ────────────────────────────────────────────────────────────── */
-.page { display: none; padding: 90px 40px 60px; max-width: 1120px; margin: 0 auto; }
-.page.active { display: block; animation: fadeUp 0.3s ease; }
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Hero / Home ──────────────────────────────────────────────────────── */
-.hero {
-  text-align: center; padding: 64px 24px 56px;
-  position: relative; overflow: hidden;
-}
-.hero-glow {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse 70% 50% at 50% 70%, rgba(201,168,76,0.07) 0%, transparent 70%);
-}
-.hero-grid {
-  position: absolute; inset: 0; pointer-events: none; opacity: 0.03;
-  background-image: linear-gradient(var(--border) 1px, transparent 1px),
-                    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-.hero h1 {
-  font-family: var(--serif); font-size: 58px; font-weight: 300;
-  line-height: 1.1; letter-spacing: -0.01em; margin-bottom: 18px;
-  position: relative;
-}
-.hero h1 em { font-style: italic; color: var(--gold); }
-.hero-sub {
-  color: var(--t1); font-size: 13px; line-height: 1.9;
-  max-width: 440px; margin: 0 auto 48px; position: relative;
-}
-.role-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 16px; max-width: 720px; margin: 0 auto 40px;
-  position: relative;
-}
-.role-card {
-  background: var(--bg1); border: 1px solid var(--border);
-  border-radius: var(--rl); padding: 28px 22px;
-  cursor: pointer; transition: 0.2s; text-align: left;
-  position: relative; overflow: hidden;
-}
-.role-card:hover { border-color: var(--border3); transform: translateY(-3px); }
-.role-card.selected { border-color: var(--gold); background: var(--gold-bg); }
-.role-card::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(201,168,76,0.04) 0%, transparent 60%);
-  opacity: 0; transition: 0.2s;
-}
-.role-card:hover::after, .role-card.selected::after { opacity: 1; }
-.role-icon {
-  width: 38px; height: 38px; border-radius: 10px;
-  border: 1px solid var(--border2); display: flex; align-items: center;
-  justify-content: center; font-size: 18px; margin-bottom: 16px;
-  background: var(--bg2);
-}
-.role-title { font-family: var(--serif); font-size: 20px; font-weight: 500; margin-bottom: 6px; }
-.role-desc { font-size: 11px; color: var(--t1); line-height: 1.8; }
-.role-check {
-  position: absolute; top: 14px; right: 14px;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: var(--gold); display: none;
-  align-items: center; justify-content: center;
-  font-size: 10px; color: #070910; font-weight: 700;
-}
-.role-card.selected .role-check { display: flex; }
-
-.connect-main {
-  padding: 13px 42px; background: var(--gold);
-  color: #070910; border: none; border-radius: var(--rx);
-  font-family: var(--mono); font-size: 13px; font-weight: 500;
-  letter-spacing: 0.05em; cursor: pointer; transition: 0.15s;
-  position: relative;
-}
-.connect-main:hover { background: #d9b85c; transform: translateY(-1px); }
-.connect-main:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-/* ── Page Header ──────────────────────────────────────────────────────── */
-.pg-header {
-  display: flex; align-items: flex-start;
-  justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 12px;
-}
-.pg-title { font-family: var(--serif); font-size: 34px; font-weight: 400; margin-bottom: 4px; }
-.pg-meta { color: var(--t1); font-size: 11px; letter-spacing: 0.04em; }
-
-/* ── Stats ────────────────────────────────────────────────────────────── */
-.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
-.stat-box {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--rl); padding: 18px 20px;
-}
-.stat-lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--t2); margin-bottom: 8px; }
-.stat-val { font-family: var(--serif); font-size: 30px; font-weight: 500; line-height: 1; }
-.stat-sub { font-size: 10px; color: var(--t2); margin-top: 5px; }
-.c-gold  { color: var(--gold); }
-.c-green { color: var(--green); }
-.c-red   { color: var(--red); }
-.c-blue  { color: var(--blue); }
-
-/* ── Cards ────────────────────────────────────────────────────────────── */
-.card {
-  background: var(--bg1); border: 1px solid var(--border);
-  border-radius: var(--rl); padding: 22px 24px; margin-bottom: 18px;
-}
-.card-hd {
-  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--t2); margin-bottom: 18px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
-
-/* ── Trust Meter ──────────────────────────────────────────────────────── */
-.trust-row { display: flex; align-items: center; gap: 16px; }
-.grade-box {
-  width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-size: 18px; font-weight: 600;
-  background: var(--gold-bg); color: var(--gold);
-  border: 1px solid rgba(201,168,76,0.3);
-}
-.trust-track {
-  flex: 1; height: 5px; background: var(--bg4); border-radius: 3px; overflow: hidden;
-}
-.trust-fill {
-  height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
-  background: linear-gradient(90deg, var(--red) 0%, var(--gold) 50%, var(--green) 100%);
-}
-.trust-num { font-family: var(--serif); font-size: 24px; font-weight: 500; min-width: 54px; text-align: right; color: var(--gold); }
-.trust-labels {
-  display: flex; justify-content: space-between;
-  font-size: 9px; color: var(--t3); margin-top: 5px; letter-spacing: 0.06em;
-}
-
-/* ── Forms ────────────────────────────────────────────────────────────── */
-.form-group { margin-bottom: 14px; }
-.lbl {
-  display: block; font-size: 10px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--t2); margin-bottom: 7px;
-}
-input[type=text], input[type=number], textarea {
-  width: 100%; background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 10px 13px;
-  color: var(--t0); font-family: var(--mono); font-size: 12px;
-  outline: none; transition: 0.15s; -webkit-appearance: none;
-}
-input:focus, textarea:focus { border-color: rgba(201,168,76,0.5); background: var(--bg3); }
-textarea { resize: vertical; min-height: 72px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.form-hint { font-size: 11px; color: var(--t2); margin-top: 6px; line-height: 1.7; }
-
-/* ── Buttons ──────────────────────────────────────────────────────────── */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 20px; border-radius: var(--r); font-family: var(--mono);
-  font-size: 12px; font-weight: 500; letter-spacing: 0.04em;
-  cursor: pointer; transition: 0.15s; border: none; white-space: nowrap;
-}
-.btn:disabled { opacity: 0.45; cursor: not-allowed !important; }
-.btn-gold { background: var(--gold); color: #070910; }
-.btn-gold:hover:not(:disabled) { background: #d9b85c; }
-.btn-outline { background: transparent; color: var(--t1); border: 1px solid var(--border2); }
-.btn-outline:hover:not(:disabled) { color: var(--t0); border-color: var(--border3); }
-.btn-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(45,212,160,0.25); }
-.btn-green:hover:not(:disabled) { background: rgba(45,212,160,0.18); }
-.btn-red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(224,88,88,0.25); }
-.btn-red:hover:not(:disabled) { background: rgba(224,88,88,0.18); }
-.btn-full { width: 100%; }
-.btn-sm { padding: 5px 12px; font-size: 11px; }
-
-/* ── Badges ───────────────────────────────────────────────────────────── */
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 20px; font-size: 11px; letter-spacing: 0.04em;
-}
-.bg-green { background: var(--green-bg); color: var(--green); }
-.bg-gold  { background: var(--gold-bg);  color: var(--gold); }
-.bg-red   { background: var(--red-bg);   color: var(--red); }
-.bg-blue  { background: var(--blue-bg);  color: var(--blue); }
-.bg-gray  { background: var(--bg3);      color: var(--t1); }
-
-/* ── Table ────────────────────────────────────────────────────────────── */
-.tbl-wrap { overflow-x: auto; }
-.tbl { width: 100%; border-collapse: collapse; }
-.tbl th {
-  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--t2); padding: 9px 14px; border-bottom: 1px solid var(--border); text-align: left;
-}
-.tbl td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--t1); font-size: 12px; }
-.tbl tbody tr:last-child td { border-bottom: none; }
-.tbl tbody tr:hover td { background: var(--bg2); cursor: default; }
-
-/* ── Alert boxes ──────────────────────────────────────────────────────── */
-.alert {
-  padding: 13px 16px; border-radius: var(--r);
-  font-size: 12px; line-height: 1.8; margin-bottom: 16px;
-  display: flex; gap: 10px; align-items: flex-start;
-}
-.alert-warn { background: rgba(201,168,76,0.07); border: 1px solid rgba(201,168,76,0.2); color: var(--gold); }
-.alert-info { background: var(--blue-bg); border: 1px solid rgba(91,156,246,0.2); color: var(--blue); }
-.alert-red  { background: var(--red-bg);  border: 1px solid rgba(224,88,88,0.2);  color: var(--red); }
-.alert-green{ background: var(--green-bg);border: 1px solid rgba(45,212,160,0.2); color: var(--green); }
-
-/* ── Info rows (key-value) ────────────────────────────────────────────── */
-.info-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 0; border-bottom: 1px solid var(--border);
-  font-size: 12px;
-}
-.info-row:last-child { border-bottom: none; }
-.info-key { color: var(--t2); }
-.info-val { color: var(--t0); text-align: right; }
-
-/* ── Divider ──────────────────────────────────────────────────────────── */
-hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-
-/* ── Status bar (loading) ─────────────────────────────────────────────── */
-.loading-bar {
-  height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  width: 100%; position: fixed; top: 0; left: 0; z-index: 999;
-  animation: shimmer 1.2s infinite; display: none;
-}
-.loading-bar.show { display: block; }
-@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-
-/* ── Toast ────────────────────────────────────────────────────────────── */
-#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 10px; }
-.toast {
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: var(--rl); padding: 13px 18px;
-  font-size: 12px; line-height: 1.6; color: var(--t0);
-  max-width: 340px; min-width: 240px;
-  animation: toastIn 0.25s ease;
-  display: flex; align-items: flex-start; gap: 10px;
-}
-.toast.removing { animation: toastOut 0.25s ease forwards; }
-@keyframes toastIn  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-@keyframes toastOut { from { opacity:1; transform:translateY(0); }    to { opacity:0; transform:translateY(12px); } }
-.toast-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-
-/* ── Contract status chip ─────────────────────────────────────────────── */
-.contract-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 12px; border-radius: 20px;
-  font-size: 11px;
-}
-.not-configured { background: var(--red-bg); color: var(--red); border: 1px solid rgba(224,88,88,.2); }
-.is-configured  { background: var(--green-bg); color: var(--green); border: 1px solid rgba(45,212,160,.2); }
-
-/* ── Responsive ───────────────────────────────────────────────────────── */
-@media (max-width: 700px) {
-  .role-grid, .two-col, .three-col, .form-row { grid-template-columns: 1fr; }
-  .hero h1 { font-size: 38px; }
-  .page { padding: 80px 18px 40px; }
-  #nav { padding: 0 16px; }
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MultiBond — Decentralised Bond Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-<div class="loading-bar" id="loading-bar"></div>
 
-<!-- ── NAV ──────────────────────────────────────────────────────────── -->
-<nav id="nav">
-  <div class="nav-logo" onclick="goHome()">
-    <div class="nav-logo-mark">◈</div>
-    BondChain
-  </div>
-  <button class="nav-link" id="tab-investor" onclick="showPage('investor',this)">◎ Investor</button>
-  <button class="nav-link" id="tab-issuer"   onclick="showPage('issuer',this)">◈ Issuer</button>
-  <button class="nav-link" id="tab-admin"    onclick="showPage('admin',this)">⬡ Admin</button>
-  <button class="wallet-btn" id="wallet-btn" onclick="handleWalletClick()">
-    <div class="w-dot" id="w-dot"></div>
-    <span id="wallet-label">Connect Wallet</span>
-  </button>
-</nav>
+  <!-- ═══════════════════════════════════════════ HOME PAGE -->
+  <div id="page-home" class="page active">
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
 
-<!-- ── HOME ─────────────────────────────────────────────────────────── -->
-<div class="page active" id="page-home">
-  <div class="hero">
-    <div class="hero-glow"></div>
-    <div class="hero-grid"></div>
-    <h1>On-chain bonds,<br><em>built on trust.</em></h1>
-    <p class="hero-sub">Issue, invest in, and manage blockchain bonds with full transparency, KYC compliance, and an on-chain trust score for every issuer.</p>
+    <nav class="top-nav">
+      <div class="nav-logo">
+        <span class="logo-mark">◆</span>
+        <span class="logo-text">MultiBond</span>
+      </div>
+      <button id="btn-connect-home" class="btn-connect">
+        <span class="connect-dot"></span>
+        Connect Wallet
+      </button>
+    </nav>
 
-    <div class="role-grid">
-      <div class="role-card" onclick="selectRole('investor',this)" id="role-investor">
-        <div class="role-check">✓</div>
-        <div class="role-icon">◎</div>
-        <div class="role-title">Investor</div>
-        <div class="role-desc">Buy bond tokens, claim coupons, and track issuer trust scores in real time.</div>
-      </div>
-      <div class="role-card" onclick="selectRole('issuer',this)" id="role-issuer">
-        <div class="role-check">✓</div>
-        <div class="role-icon">◈</div>
-        <div class="role-title">Issuer</div>
-        <div class="role-desc">Issue bonds, manage escrow, pay coupons, and build your on-chain credit record.</div>
-      </div>
-      <div class="role-card" onclick="selectRole('admin',this)" id="role-admin">
-        <div class="role-check">✓</div>
-        <div class="role-icon">⬡</div>
-        <div class="role-title">Admin</div>
-        <div class="role-desc">Approve KYC, declare defaults, flag withdrawals, and oversee the marketplace.</div>
-      </div>
-    </div>
+    <main class="home-main">
+      <div class="home-eyebrow">Decentralised Fixed Income</div>
+      <h1 class="home-title">
+        Bond Markets.<br>
+        <em>On Chain.</em>
+      </h1>
+      <p class="home-sub">Issue, manage, and invest in tokenised bonds with full transparency, KYC compliance, and automated coupon payments.</p>
 
-    <button class="connect-main" id="connect-btn" onclick="connectWallet()">Connect Wallet to Enter</button>
-  </div>
+      <div class="wallet-status" id="wallet-status-home"></div>
 
-  <!-- contract config -->
-  <div class="card" style="max-width:600px;margin:0 auto">
-    <div class="card-hd">
-      Contract Configuration
-      <span class="contract-chip not-configured" id="config-chip">Not configured</span>
-    </div>
-    <div class="form-group">
-      <label class="lbl">SimpleBond Contract Address</label>
-      <input type="text" id="contract-address" placeholder="Paste your deployed contract address here…" oninput="saveConfig()">
-    </div>
-    <div class="form-hint">Deploy SimpleBond.sol in Remix, copy the contract address, paste it above. This is saved in your browser.</div>
-  </div>
-</div>
-
-<!-- ── INVESTOR ──────────────────────────────────────────────────────── -->
-<div class="page" id="page-investor">
-  <div class="pg-header">
-    <div>
-      <div class="pg-title">Investor Dashboard</div>
-      <div class="pg-meta" id="inv-meta">Loading…</div>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center">
-      <span class="badge" id="inv-kyc-badge">⋯ Checking KYC</span>
-      <button class="btn btn-outline btn-sm" onclick="loadInvestorData()">↻ Refresh</button>
-    </div>
-  </div>
-
-  <div class="stats-row">
-    <div class="stat-box"><div class="stat-lbl">Your Holdings</div><div class="stat-val c-gold" id="inv-balance">—</div><div class="stat-sub">BOND tokens</div></div>
-    <div class="stat-box"><div class="stat-lbl">Claimable Coupon</div><div class="stat-val c-green" id="inv-coupon">—</div><div class="stat-sub">ETH pending</div></div>
-    <div class="stat-box"><div class="stat-lbl">Face Value</div><div class="stat-val" id="inv-facevalue">—</div><div class="stat-sub">ETH per token</div></div>
-    <div class="stat-box"><div class="stat-lbl">Bond Status</div><div class="stat-val" id="inv-status" style="font-size:18px">—</div><div class="stat-sub" id="inv-maturity">—</div></div>
-  </div>
-
-  <div class="two-col">
-    <!-- Transfer tokens -->
-    <div class="card">
-      <div class="card-hd">Transfer Bond Tokens</div>
-      <div class="form-group">
-        <label class="lbl">Recipient Address</label>
-        <input type="text" id="transfer-to" placeholder="0x…">
-      </div>
-      <div class="form-group">
-        <label class="lbl">Amount (tokens in wei)</label>
-        <input type="number" id="transfer-amount" placeholder="e.g. 1000000000000000000">
-      </div>
-      <div class="form-hint" style="margin-bottom:14px">Both sender and recipient must be KYC verified to transfer.</div>
-      <button class="btn btn-gold btn-full" onclick="transferTokens()">Transfer Tokens</button>
-    </div>
-
-    <!-- Redeem -->
-    <div class="card">
-      <div class="card-hd">Redeem at Maturity</div>
-      <div class="alert alert-info" id="redeem-alert">
-        <span>ℹ</span>
-        <span>Redemption is only available after the bond's maturity date. Your tokens are burned and you receive face value in ETH.</span>
-      </div>
-      <div class="info-row">
-        <span class="info-key">Your tokens</span>
-        <span class="info-val" id="redeem-tokens">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-key">Payout at maturity</span>
-        <span class="info-val c-gold" id="redeem-payout">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-key">Maturity date</span>
-        <span class="info-val" id="redeem-date">—</span>
-      </div>
-      <br>
-      <button class="btn btn-green btn-full" id="redeem-btn" onclick="redeemBond()">Redeem Tokens</button>
-    </div>
-  </div>
-
-  <!-- Trust score -->
-  <div class="card">
-    <div class="card-hd">Issuer Trust Score</div>
-    <div class="trust-row">
-      <div class="grade-box" id="inv-grade">—</div>
-      <div style="flex:1">
-        <div class="trust-track"><div class="trust-fill" id="inv-trust-bar" style="width:0%"></div></div>
-        <div class="trust-labels"><span>C · 0</span><span>B · 300</span><span>BB · 450</span><span>BBB · 600</span><span>A · 700</span><span>AA · 800</span><span>AAA · 900</span></div>
-      </div>
-      <div class="trust-num" id="inv-trust-num">—</div>
-    </div>
-    <div class="form-hint" style="margin-top:14px">
-      Score updates on-chain: +20 on-time coupon · −30 late · +5 disclosed withdrawal · −40 flagged withdrawal · −150 default · +50 full redemption
-    </div>
-  </div>
-
-  <!-- Bond info -->
-  <div class="card">
-    <div class="card-hd">Bond Details</div>
-    <div class="two-col">
-      <div>
-        <div class="info-row"><span class="info-key">Coupon rate</span><span class="info-val c-gold" id="inv-coupon-rate">—</span></div>
-        <div class="info-row"><span class="info-key">Coupon interval</span><span class="info-val" id="inv-interval">—</span></div>
-        <div class="info-row"><span class="info-key">Grace period</span><span class="info-val" id="inv-grace">—</span></div>
-      </div>
-      <div>
-        <div class="info-row"><span class="info-key">Total supply</span><span class="info-val" id="inv-supply">—</span></div>
-        <div class="info-row"><span class="info-key">Escrow balance</span><span class="info-val c-green" id="inv-escrow">—</span></div>
-        <div class="info-row"><span class="info-key">Total holders</span><span class="info-val" id="inv-holders">—</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Withdrawal history -->
-  <div class="card">
-    <div class="card-hd">Issuer Withdrawal History <span id="inv-withdrawal-count" class="badge bg-gray">0</span></div>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th>#</th><th>Date</th><th>Amount (ETH)</th><th>Reason</th><th>Status</th></tr></thead>
-        <tbody id="inv-withdrawals-tbody">
-          <tr><td colspan="5" style="text-align:center;color:var(--t2);padding:28px">No withdrawals on record</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ── ISSUER ─────────────────────────────────────────────────────────── -->
-<div class="page" id="page-issuer">
-  <div class="pg-header">
-    <div>
-      <div class="pg-title">Issuer Panel</div>
-      <div class="pg-meta" id="iss-meta">Loading…</div>
-    </div>
-    <button class="btn btn-outline btn-sm" onclick="loadIssuerData()">↻ Refresh</button>
-  </div>
-
-  <div class="stats-row">
-    <div class="stat-box"><div class="stat-lbl">Escrow Balance</div><div class="stat-val c-gold" id="iss-escrow">—</div><div class="stat-sub">ETH available</div></div>
-    <div class="stat-box"><div class="stat-lbl">Total Supply</div><div class="stat-val" id="iss-supply">—</div><div class="stat-sub">BOND tokens issued</div></div>
-    <div class="stat-box"><div class="stat-lbl">Trust Score</div><div class="stat-val c-green" id="iss-trust">—</div><div class="stat-sub" id="iss-grade-sub">—</div></div>
-    <div class="stat-box"><div class="stat-lbl">Holders</div><div class="stat-val" id="iss-holders">—</div><div class="stat-sub">KYC investors</div></div>
-  </div>
-
-  <!-- Trust meter -->
-  <div class="card">
-    <div class="card-hd">Your Trust Score</div>
-    <div class="trust-row">
-      <div class="grade-box" id="iss-grade-box">—</div>
-      <div style="flex:1">
-        <div class="trust-track"><div class="trust-fill" id="iss-trust-bar" style="width:0%"></div></div>
-        <div class="trust-labels"><span>C</span><span>B · 300</span><span>BB · 450</span><span>BBB · 600</span><span>A · 700</span><span>AA · 800</span><span>AAA</span></div>
-      </div>
-      <div class="trust-num" id="iss-trust-num">—</div>
-    </div>
-  </div>
-
-  <div class="two-col">
-    <!-- Deposit to escrow -->
-    <div class="card">
-      <div class="card-hd">Deposit ETH to Escrow</div>
-      <div class="form-group">
-        <label class="lbl">Amount (ETH)</label>
-        <input type="number" id="deposit-amount" placeholder="e.g. 0.5" step="0.001">
-      </div>
-      <div class="form-hint" style="margin-bottom:14px">Pre-fund escrow before paying coupons or allowing redemptions. Coupon due: <span id="next-coupon-due" class="c-gold">—</span></div>
-      <button class="btn btn-gold btn-full" onclick="depositEscrow()">Deposit to Escrow</button>
-    </div>
-
-    <!-- Pay coupon -->
-    <div class="card">
-      <div class="card-hd">Pay Coupon</div>
-      <div class="info-row"><span class="info-key">Total coupon due</span><span class="info-val c-gold" id="coupon-due-amount">—</span></div>
-      <div class="info-row"><span class="info-key">Escrow balance</span><span class="info-val c-green" id="coupon-escrow">—</span></div>
-      <div class="info-row"><span class="info-key">Last coupon paid</span><span class="info-val" id="last-coupon">—</span></div>
-      <br>
-      <div class="alert alert-info" style="margin-bottom:14px">
-        <span>ℹ</span><span>Coupon is split pro-rata across all token holders automatically. Timeliness affects trust score.</span>
-      </div>
-      <button class="btn btn-green btn-full" onclick="payCoupon()">Pay Coupon Now (+20 trust if on time)</button>
-    </div>
-  </div>
-
-  <!-- Issue tokens -->
-  <div class="card">
-    <div class="card-hd">Issue Tokens to Investor</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="lbl">Investor Address</label>
-        <input type="text" id="issue-to" placeholder="0x…">
-      </div>
-      <div class="form-group">
-        <label class="lbl">Amount (wei — 1 token = 10^18)</label>
-        <input type="number" id="issue-amount" placeholder="e.g. 1000000000000000000">
-      </div>
-    </div>
-    <div class="form-hint" style="margin-bottom:14px">Investor must be KYC approved by admin first. Tokens are minted directly to their wallet.</div>
-    <button class="btn btn-gold" onclick="issueTokens()">Issue Tokens</button>
-  </div>
-
-  <!-- Withdraw funds -->
-  <div class="card">
-    <div class="card-hd">Withdraw Funds from Escrow</div>
-    <div class="alert alert-warn">
-      <span>⚠</span>
-      <span>A reason is required. Every withdrawal emits an on-chain alert to all token holders. Unexplained withdrawals can be flagged by admin (−40 trust). Transparent disclosures earn +5 trust.</span>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="lbl">Amount (ETH)</label>
-        <input type="number" id="withdraw-amount" placeholder="e.g. 0.1" step="0.001">
-      </div>
-      <div class="form-group">
-        <label class="lbl">Reason (required)</label>
-        <input type="text" id="withdraw-reason" placeholder="e.g. Q2 operating costs">
-      </div>
-    </div>
-    <button class="btn btn-outline btn-full" onclick="withdrawFunds()">Withdraw &amp; Notify Investors (+5 trust)</button>
-  </div>
-</div>
-
-<!-- ── ADMIN ──────────────────────────────────────────────────────────── -->
-<div class="page" id="page-admin">
-  <div class="pg-header">
-    <div>
-      <div class="pg-title">Admin Panel</div>
-      <div class="pg-meta" id="adm-meta">Full contract permissions</div>
-    </div>
-    <button class="btn btn-outline btn-sm" onclick="loadAdminData()">↻ Refresh</button>
-  </div>
-
-  <div class="stats-row">
-    <div class="stat-box"><div class="stat-lbl">Bond Status</div><div class="stat-val" id="adm-status" style="font-size:18px">—</div><div class="stat-sub">contract state</div></div>
-    <div class="stat-box"><div class="stat-lbl">Escrow Balance</div><div class="stat-val c-gold" id="adm-escrow">—</div><div class="stat-sub">ETH locked</div></div>
-    <div class="stat-box"><div class="stat-lbl">Issuer Trust</div><div class="stat-val c-green" id="adm-trust">—</div><div class="stat-sub" id="adm-grade">Grade —</div></div>
-    <div class="stat-box"><div class="stat-lbl">Total Holders</div><div class="stat-val" id="adm-holders">—</div><div class="stat-sub">KYC addresses</div></div>
-  </div>
-
-  <div class="two-col">
-    <!-- KYC Management -->
-    <div class="card">
-      <div class="card-hd">KYC Management</div>
-      <div class="form-group">
-        <label class="lbl">Wallet Address</label>
-        <input type="text" id="kyc-addr" placeholder="0x…">
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:20px">
-        <button class="btn btn-green" style="flex:1" onclick="approveKYC()">✓ Approve KYC</button>
-        <button class="btn btn-red" style="flex:1" onclick="revokeKYC()">✕ Revoke KYC</button>
-      </div>
-      <hr>
-      <div class="card-hd" style="margin-top:14px">Check KYC Status</div>
-      <div class="form-group">
-        <label class="lbl">Address to check</label>
-        <input type="text" id="kyc-check-addr" placeholder="0x…">
-      </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="btn btn-outline" onclick="checkKYC()">Check Status</button>
-        <span id="kyc-check-result" class="badge bg-gray" style="display:none"></span>
-      </div>
-    </div>
-
-    <!-- Trust & Default controls -->
-    <div class="card">
-      <div class="card-hd">Trust Score Controls</div>
-      <div class="trust-row" style="margin-bottom:20px">
-        <div class="grade-box" id="adm-grade-box">—</div>
-        <div style="flex:1">
-          <div class="trust-track"><div class="trust-fill" id="adm-trust-bar" style="width:0%"></div></div>
-          <div class="trust-labels"><span>C</span><span>BB</span><span>BBB</span><span>A</span><span>AAA</span></div>
+      <div class="role-cards">
+        <div class="role-card" data-role="investor">
+          <div class="role-icon">⬡</div>
+          <div class="role-label">Investor</div>
+          <div class="role-desc">Browse bonds, manage your portfolio, and claim coupon payments.</div>
+          <div class="role-arrow">→</div>
         </div>
-        <div class="trust-num" id="adm-trust-num">—</div>
-      </div>
-      <hr>
-      <div class="card-hd" style="margin-top:14px">Flag Withdrawal as Unexplained</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="lbl">Withdrawal Index</label>
-          <input type="number" id="flag-index" placeholder="0, 1, 2…" min="0">
+        <div class="role-card" data-role="issuer">
+          <div class="role-icon">◈</div>
+          <div class="role-label">Issuer</div>
+          <div class="role-desc">Create bonds, manage escrow, issue to investors, and pay coupons.</div>
+          <div class="role-arrow">→</div>
         </div>
-        <div class="form-group">
-          <label class="lbl">Admin Note</label>
-          <input type="text" id="flag-note" placeholder="Reason for flagging…">
+        <div class="role-card" data-role="admin">
+          <div class="role-icon">✦</div>
+          <div class="role-label">Admin</div>
+          <div class="role-desc">Approve KYC requests and oversee platform compliance.</div>
+          <div class="role-arrow">→</div>
         </div>
       </div>
-      <button class="btn btn-red btn-full" style="margin-bottom:20px" onclick="flagWithdrawal()">Flag Withdrawal (−40 trust)</button>
-      <hr>
-      <div class="card-hd" style="margin-top:14px">Declare Bond Default</div>
-      <div class="alert alert-red" style="margin-bottom:14px">
-        <span>✕</span>
-        <span>Irreversible. Bond → Defaulted. Trust score −150. All holders notified on-chain.</span>
+    </main>
+
+    <footer class="home-footer">
+      <span class="mono">Contract: <span id="contract-addr-display">0x0000…0000</span></span>
+      <span class="mono">Network: <span id="network-display">—</span></span>
+    </footer>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ INVESTOR DASHBOARD -->
+  <div id="page-investor" class="page">
+    <div class="bg-grid"></div>
+    <div class="bg-glow teal"></div>
+
+    <nav class="top-nav">
+      <div class="nav-logo">
+        <span class="logo-mark">◆</span>
+        <span class="logo-text">MultiBond</span>
+        <span class="role-badge investor">Investor</span>
       </div>
-      <button class="btn btn-red btn-full" onclick="declareDefault()">Declare Default</button>
+      <div class="nav-right">
+        <span class="wallet-pill" id="investor-wallet-pill"></span>
+        <button class="btn-back" onclick="goHome()">← Home</button>
+      </div>
+    </nav>
+
+    <div class="dashboard">
+      <aside class="sidebar">
+        <div class="sidebar-title">Dashboard</div>
+        <nav class="sidebar-nav">
+          <a class="snav active" data-tab="inv-portfolio">⬡ Portfolio</a>
+          <a class="snav" data-tab="inv-bonds">◎ Browse Bonds</a>
+          <a class="snav" data-tab="inv-redeem">↩ Redeem</a>
+        </nav>
+        <div class="sidebar-stats">
+          <div class="stat-row"><span>Bonds Held</span><span id="inv-stat-held">—</span></div>
+          <div class="stat-row"><span>Total Value</span><span id="inv-stat-value">—</span></div>
+        </div>
+      </aside>
+
+      <main class="dash-main">
+
+        <!-- Portfolio Tab -->
+        <div class="tab-pane active" id="inv-portfolio">
+          <div class="pane-header">
+            <h2>My Portfolio</h2>
+            <button class="btn-action" onclick="App.investor.loadPortfolio()">↻ Refresh</button>
+          </div>
+          <div class="bond-grid" id="inv-portfolio-grid">
+            <div class="empty-state">Connect wallet and refresh to view holdings.</div>
+          </div>
+        </div>
+
+        <!-- Browse Bonds Tab -->
+        <div class="tab-pane" id="inv-bonds">
+          <div class="pane-header">
+            <h2>Available Bonds</h2>
+            <button class="btn-action" onclick="App.investor.loadBonds()">↻ Refresh</button>
+          </div>
+          <div class="bond-grid" id="inv-bonds-grid">
+            <div class="empty-state">Loading bonds…</div>
+          </div>
+        </div>
+
+        <!-- Redeem Tab -->
+        <div class="tab-pane" id="inv-redeem">
+          <div class="pane-header"><h2>Redeem Bond</h2></div>
+          <div class="form-card">
+            <label class="field-label">Bond ID</label>
+            <input class="field-input" id="inv-redeem-id" type="number" placeholder="e.g. 0" min="0" />
+            <button class="btn-primary" onclick="App.investor.redeem()">Redeem at Maturity</button>
+            <div class="tx-status" id="inv-redeem-status"></div>
+          </div>
+        </div>
+
+      </main>
     </div>
   </div>
 
-  <!-- Withdrawal history with flag actions -->
-  <div class="card">
-    <div class="card-hd">
-      All Withdrawals
-      <span id="adm-withdrawal-count" class="badge bg-gray">0</span>
-    </div>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th>#</th><th>Date</th><th>Amount (ETH)</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody id="adm-withdrawals-tbody">
-          <tr><td colspan="6" style="text-align:center;color:var(--t2);padding:28px">No withdrawals on record</td></tr>
-        </tbody>
-      </table>
+  <!-- ═══════════════════════════════════════════ ISSUER DASHBOARD -->
+  <div id="page-issuer" class="page">
+    <div class="bg-grid"></div>
+    <div class="bg-glow gold"></div>
+
+    <nav class="top-nav">
+      <div class="nav-logo">
+        <span class="logo-mark">◆</span>
+        <span class="logo-text">MultiBond</span>
+        <span class="role-badge issuer">Issuer</span>
+      </div>
+      <div class="nav-right">
+        <span class="wallet-pill" id="issuer-wallet-pill"></span>
+        <button class="btn-back" onclick="goHome()">← Home</button>
+      </div>
+    </nav>
+
+    <div class="dashboard">
+      <aside class="sidebar">
+        <div class="sidebar-title">Dashboard</div>
+        <nav class="sidebar-nav">
+          <a class="snav active" data-tab="iss-create">◈ Create Bond</a>
+          <a class="snav" data-tab="iss-manage">⊞ My Bonds</a>
+          <a class="snav" data-tab="iss-issue">⊕ Issue Tokens</a>
+          <a class="snav" data-tab="iss-escrow">⬡ Escrow</a>
+          <a class="snav" data-tab="iss-coupon">◎ Pay Coupon</a>
+        </nav>
+        <div class="sidebar-stats">
+          <div class="stat-row"><span>Bonds Created</span><span id="iss-stat-bonds">—</span></div>
+          <div class="stat-row"><span>Total Escrow</span><span id="iss-stat-escrow">—</span></div>
+        </div>
+      </aside>
+
+      <main class="dash-main">
+
+        <!-- Create Bond -->
+        <div class="tab-pane active" id="iss-create">
+          <div class="pane-header"><h2>Create New Bond</h2></div>
+          <div class="form-card wide">
+            <div class="form-row">
+              <div class="form-col">
+                <label class="field-label">Bond Name</label>
+                <input class="field-input" id="iss-c-name" placeholder="e.g. TechCorp 2027" />
+              </div>
+              <div class="form-col">
+                <label class="field-label">Face Value (wei)</label>
+                <input class="field-input" id="iss-c-face" type="number" placeholder="e.g. 1000000000000000000" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-col">
+                <label class="field-label">Coupon Rate (bps) <span class="hint">100 bps = 1%</span></label>
+                <input class="field-input" id="iss-c-rate" type="number" placeholder="e.g. 500" />
+              </div>
+              <div class="form-col">
+                <label class="field-label">Maturity (Unix timestamp)</label>
+                <input class="field-input" id="iss-c-maturity" type="number" placeholder="e.g. 1893456000" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-col">
+                <label class="field-label">Coupon Interval (seconds)</label>
+                <input class="field-input" id="iss-c-interval" type="number" placeholder="e.g. 2592000 (30 days)" />
+              </div>
+              <div class="form-col">
+                <label class="field-label">Grace Period (seconds)</label>
+                <input class="field-input" id="iss-c-grace" type="number" placeholder="e.g. 604800 (7 days)" />
+              </div>
+            </div>
+            <button class="btn-primary" onclick="App.issuer.createBond()">Create Bond</button>
+            <div class="tx-status" id="iss-create-status"></div>
+          </div>
+        </div>
+
+        <!-- My Bonds -->
+        <div class="tab-pane" id="iss-manage">
+          <div class="pane-header">
+            <h2>My Bonds</h2>
+            <button class="btn-action" onclick="App.issuer.loadBonds()">↻ Refresh</button>
+          </div>
+          <div class="bond-grid" id="iss-bonds-grid">
+            <div class="empty-state">Refresh to load your bonds.</div>
+          </div>
+        </div>
+
+        <!-- Issue Tokens -->
+        <div class="tab-pane" id="iss-issue">
+          <div class="pane-header"><h2>Issue Bond Tokens</h2></div>
+          <div class="form-card">
+            <label class="field-label">Bond ID</label>
+            <input class="field-input" id="iss-i-bondid" type="number" placeholder="0" />
+            <label class="field-label">Investor Address</label>
+            <input class="field-input" id="iss-i-addr" placeholder="0x…" />
+            <label class="field-label">Amount (tokens)</label>
+            <input class="field-input" id="iss-i-amount" type="number" placeholder="100" />
+            <button class="btn-primary" onclick="App.issuer.issue()">Issue Tokens</button>
+            <div class="tx-status" id="iss-issue-status"></div>
+          </div>
+        </div>
+
+        <!-- Escrow -->
+        <div class="tab-pane" id="iss-escrow">
+          <div class="pane-header"><h2>Deposit to Escrow</h2></div>
+          <div class="form-card">
+            <label class="field-label">Bond ID</label>
+            <input class="field-input" id="iss-e-bondid" type="number" placeholder="0" />
+            <label class="field-label">Amount (ETH)</label>
+            <input class="field-input" id="iss-e-amount" type="number" step="0.001" placeholder="0.5" />
+            <button class="btn-primary" onclick="App.issuer.deposit()">Deposit ETH</button>
+            <div class="tx-status" id="iss-escrow-status"></div>
+          </div>
+        </div>
+
+        <!-- Pay Coupon -->
+        <div class="tab-pane" id="iss-coupon">
+          <div class="pane-header"><h2>Pay Coupon</h2></div>
+          <div class="form-card">
+            <label class="field-label">Bond ID</label>
+            <input class="field-input" id="iss-p-bondid" type="number" placeholder="0" />
+            <p class="hint-text">Coupon will be distributed proportionally to all holders from escrow.</p>
+            <button class="btn-primary" onclick="App.issuer.payCoupon()">Pay Coupon</button>
+            <div class="tx-status" id="iss-coupon-status"></div>
+          </div>
+        </div>
+
+      </main>
     </div>
   </div>
 
-  <!-- Bond read-only info -->
-  <div class="card">
-    <div class="card-hd">Bond Parameters (read-only)</div>
-    <div class="three-col">
-      <div>
-        <div class="info-row"><span class="info-key">Face value</span><span class="info-val" id="adm-facevalue">—</span></div>
-        <div class="info-row"><span class="info-key">Coupon rate</span><span class="info-val" id="adm-coupon-rate">—</span></div>
+  <!-- ═══════════════════════════════════════════ ADMIN DASHBOARD -->
+  <div id="page-admin" class="page">
+    <div class="bg-grid"></div>
+    <div class="bg-glow rose"></div>
+
+    <nav class="top-nav">
+      <div class="nav-logo">
+        <span class="logo-mark">◆</span>
+        <span class="logo-text">MultiBond</span>
+        <span class="role-badge admin">Admin</span>
       </div>
-      <div>
-        <div class="info-row"><span class="info-key">Maturity</span><span class="info-val" id="adm-maturity">—</span></div>
-        <div class="info-row"><span class="info-key">Total supply</span><span class="info-val" id="adm-supply">—</span></div>
+      <div class="nav-right">
+        <span class="wallet-pill" id="admin-wallet-pill"></span>
+        <button class="btn-back" onclick="goHome()">← Home</button>
       </div>
-      <div>
-        <div class="info-row"><span class="info-key">Issuer</span><span class="info-val" id="adm-issuer" style="font-size:11px">—</span></div>
-        <div class="info-row"><span class="info-key">Last coupon</span><span class="info-val" id="adm-last-coupon">—</span></div>
-      </div>
+    </nav>
+
+    <div class="dashboard">
+      <aside class="sidebar">
+        <div class="sidebar-title">Dashboard</div>
+        <nav class="sidebar-nav">
+          <a class="snav active" data-tab="adm-kyc">✦ Approve KYC</a>
+          <a class="snav" data-tab="adm-bonds">◎ All Bonds</a>
+        </nav>
+        <div class="sidebar-stats">
+          <div class="stat-row"><span>Admin Address</span></div>
+          <div class="stat-row"><span id="adm-stat-addr" class="mono small">—</span></div>
+        </div>
+      </aside>
+
+      <main class="dash-main">
+
+        <!-- Approve KYC -->
+        <div class="tab-pane active" id="adm-kyc">
+          <div class="pane-header"><h2>Approve KYC</h2></div>
+          <div class="form-card">
+            <label class="field-label">Bond ID</label>
+            <input class="field-input" id="adm-k-bondid" type="number" placeholder="0" />
+            <label class="field-label">Investor Address</label>
+            <input class="field-input" id="adm-k-addr" placeholder="0x…" />
+            <button class="btn-primary" onclick="App.admin.approveKYC()">Approve KYC</button>
+            <div class="tx-status" id="adm-kyc-status"></div>
+          </div>
+        </div>
+
+        <!-- All Bonds -->
+        <div class="tab-pane" id="adm-bonds">
+          <div class="pane-header">
+            <h2>All Bonds</h2>
+            <button class="btn-action" onclick="App.admin.loadBonds()">↻ Refresh</button>
+          </div>
+          <div class="bond-grid" id="adm-bonds-grid">
+            <div class="empty-state">Refresh to load all bonds.</div>
+          </div>
+        </div>
+
+      </main>
     </div>
   </div>
-</div>
 
-<div id="toast-container"></div>
+  <!-- Toast notification -->
+  <div id="toast" class="toast"></div>
 
-<script>
-/* ─────────────────────────────────────────────────────────────────────────
-   ABI — matches SimpleBond.sol exactly
-   ─────────────────────────────────────────────────────────────────────── */
-const ABI = [
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-  "function totalSupply() view returns (uint256)",
-  "function balanceOf(address) view returns (uint256)",
-  "function transfer(address to, uint256 amount) external",
-  "function issuer() view returns (address)",
-  "function admin() view returns (address)",
-  "function faceValue() view returns (uint256)",
-  "function couponRateBps() view returns (uint256)",
-  "function maturity() view returns (uint256)",
-  "function couponInterval() view returns (uint256)",
-  "function gracePeriod() view returns (uint256)",
-  "function status() view returns (uint8)",
-  "function lastCouponTime() view returns (uint256)",
-  "function trustScore() view returns (uint256)",
-  "function trustGrade() view returns (string)",
-  "function nextCouponDue() view returns (uint256)",
-  "function escrowBalance() view returns (uint256)",
-  "function kyc(address) view returns (bool)",
-  "function holderCount() view returns (uint256)",
-  "function withdrawalCount() view returns (uint256)",
-  "function withdrawals(uint256) view returns (uint256 amount, uint256 timestamp, string reason, bool flagged)",
-  "function approveKYC(address user) external",
-  "function revokeKYC(address user) external",
-  "function issue(address investor, uint256 amount) external",
-  "function depositToEscrow() external payable",
-  "function payCoupon() external",
-  "function redeem() external",
-  "function markDefault() external",
-  "function withdrawFunds(uint256 amount, string calldata reason) external",
-  "function flagWithdrawal(uint256 index, string calldata adminNote) external",
-  "event Transfer(address indexed from, address indexed to, uint256 amount)",
-  "event KYCApproved(address indexed user)",
-  "event KYCRevoked(address indexed user)",
-  "event BondIssued(address indexed investor, uint256 amount)",
-  "event CouponPaid(uint256 totalPaid, bool onTime, uint256 newTrustScore)",
-  "event FundsWithdrawn(address indexed issuer, uint256 amount, string reason, uint256 newEscrowBalance, uint256 newTrustScore)",
-  "event Defaulted(uint256 newTrustScore)",
-  "event TrustScoreChanged(uint256 oldScore, uint256 newScore)"
-];
-
-/* ─────────────────────────────────────────────────────────────────────────
-   App State
-   ─────────────────────────────────────────────────────────────────────── */
-let provider, signer, contract;
-let userAddress = null;
-let contractAddress = null;
-let currentRole = null;
-const STATUS_LABELS = ['Active', 'Redeemed', 'Defaulted'];
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Init
-   ─────────────────────────────────────────────────────────────────────── */
-window.addEventListener('load', () => {
-  const saved = localStorage.getItem('bondchain_contract');
-  if (saved) {
-    document.getElementById('contract-address').value = saved;
-    contractAddress = saved;
-    document.getElementById('config-chip').className = 'contract-chip is-configured';
-    document.getElementById('config-chip').textContent = 'Configured';
-  }
-  if (window.ethereum?.selectedAddress) tryAutoConnect();
-  window.ethereum?.on('accountsChanged', () => location.reload());
-  window.ethereum?.on('chainChanged',    () => location.reload());
-});
-
-function saveConfig() {
-  const v = document.getElementById('contract-address').value.trim();
-  contractAddress = v || null;
-  if (v && v.startsWith('0x') && v.length === 42) {
-    localStorage.setItem('bondchain_contract', v);
-    document.getElementById('config-chip').className = 'contract-chip is-configured';
-    document.getElementById('config-chip').textContent = '✓ Saved';
-    toast('Contract address saved.', 'green');
-  } else {
-    document.getElementById('config-chip').className = 'contract-chip not-configured';
-    document.getElementById('config-chip').textContent = 'Invalid address';
-  }
-}
-
-async function tryAutoConnect() {
-  try {
-    provider = new ethers.BrowserProvider(window.ethereum);
-    signer   = await provider.getSigner();
-    userAddress = await signer.getAddress();
-    setWalletUI(userAddress);
-    if (contractAddress) initContract();
-  } catch(e) {}
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Wallet
-   ─────────────────────────────────────────────────────────────────────── */
-function handleWalletClick() {
-  if (userAddress) disconnectWallet();
-  else connectWallet();
-}
-
-async function connectWallet() {
-  if (!window.ethereum) {
-    toast('MetaMask not found. Please install it from metamask.io', 'red');
-    return;
-  }
-  if (!contractAddress) {
-    toast('Paste your contract address first.', 'warn');
-    return;
-  }
-  if (!currentRole) {
-    toast('Select a role first (Investor / Issuer / Admin).', 'warn');
-    return;
-  }
-  loading(true);
-  try {
-    provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    signer = await provider.getSigner();
-    userAddress = await signer.getAddress();
-    initContract();
-    setWalletUI(userAddress);
-    await activateRole(currentRole);
-    toast(`Connected as ${currentRole}. Welcome!`, 'green');
-  } catch(e) {
-    toast('Connection failed: ' + (e.reason || e.message), 'red');
-  } finally { loading(false); }
-}
-
-function disconnectWallet() {
-  userAddress = null; signer = null; provider = null; contract = null; currentRole = null;
-  document.getElementById('w-dot').className = 'w-dot';
-  document.getElementById('wallet-label').textContent = 'Connect Wallet';
-  document.getElementById('wallet-btn').className = 'wallet-btn';
-  ['tab-investor','tab-issuer','tab-admin'].forEach(id => {
-    document.getElementById(id).classList.remove('visible','active');
-  });
-  goHome();
-  toast('Disconnected.', 'info');
-}
-
-function setWalletUI(addr) {
-  document.getElementById('w-dot').className = 'w-dot on';
-  document.getElementById('wallet-label').textContent = shortAddr(addr);
-  document.getElementById('wallet-btn').className = 'wallet-btn connected';
-}
-
-function initContract() {
-  if (!signer || !contractAddress) return;
-  contract = new ethers.Contract(contractAddress, ABI, signer);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Role Selection
-   ─────────────────────────────────────────────────────────────────────── */
-function selectRole(role, el) {
-  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  currentRole = role;
-  const names = { investor: 'Connect as Investor', issuer: 'Connect as Issuer', admin: 'Connect as Admin' };
-  document.getElementById('connect-btn').textContent = names[role];
-}
-
-async function activateRole(role) {
-  ['tab-investor','tab-issuer','tab-admin'].forEach(id => {
-    document.getElementById(id).classList.remove('visible','active');
-  });
-  const tab = document.getElementById('tab-' + role);
-  tab.classList.add('visible');
-  showPage(role, tab);
-  if (role === 'investor') await loadInvestorData();
-  if (role === 'issuer')   await loadIssuerData();
-  if (role === 'admin')    await loadAdminData();
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Page navigation
-   ─────────────────────────────────────────────────────────────────────── */
-function showPage(id, tabEl) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
-  if (tabEl) tabEl.classList.add('active');
-}
-
-function goHome() {
-  showPage('home', null);
-  document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   INVESTOR — load data
-   ─────────────────────────────────────────────────────────────────────── */
-async function loadInvestorData() {
-  if (!contract || !userAddress) return;
-  loading(true);
-  try {
-    const [
-      balance, faceVal, couponRate, mat, statusRaw,
-      trust, grade, escrow, supply, holderCnt,
-      withdrawCnt, interval, grace, isKYC, lastCoupon
-    ] = await Promise.all([
-      contract.balanceOf(userAddress),
-      contract.faceValue(),
-      contract.couponRateBps(),
-      contract.maturity(),
-      contract.status(),
-      contract.trustScore(),
-      contract.trustGrade(),
-      contract.escrowBalance(),
-      contract.totalSupply(),
-      contract.holderCount(),
-      contract.withdrawalCount(),
-      contract.couponInterval(),
-      contract.gracePeriod(),
-      contract.kyc(userAddress),
-      contract.lastCouponTime()
-    ]);
-
-    const balF   = ethers.formatEther(balance);
-    const faceF  = ethers.formatEther(faceVal);
-    const statusN = Number(statusRaw);
-
-    set('inv-meta', shortAddr(userAddress));
-    set('inv-balance', parseFloat(balF).toFixed(4));
-    set('inv-facevalue', faceF + ' ETH');
-
-    // Estimate pending coupon: share × coupon rate
-    const pendingEst = supply > 0n
-      ? (balance * faceVal * couponRate) / (10000n * supply)
-      : 0n;
-    set('inv-coupon', ethers.formatEther(pendingEst));
-
-    const statusLabel = STATUS_LABELS[statusN] || 'Unknown';
-    const statusEl = document.getElementById('inv-status');
-    statusEl.textContent = statusLabel;
-    statusEl.className = 'stat-val ' + (statusN===0?'c-green':statusN===2?'c-red':'c-gold');
-
-    const matDate = new Date(Number(mat) * 1000);
-    set('inv-maturity', matDate.toLocaleDateString());
-    set('redeem-date', matDate.toLocaleDateString());
-    set('redeem-tokens', parseFloat(balF).toFixed(4) + ' BOND');
-    const payoutEst = balance * faceVal / (10n**18n);
-    set('redeem-payout', ethers.formatEther(balance * faceVal / (10n**18n)) + ' ETH');
-
-    const now = Math.floor(Date.now()/1000);
-    const redeemBtn = document.getElementById('redeem-btn');
-    redeemBtn.disabled = now < Number(mat);
-    document.getElementById('redeem-alert').style.display = now < Number(mat) ? 'flex' : 'none';
-
-    // Trust
-    setTrustUI('inv', Number(trust), grade);
-
-    // KYC badge
-    const kycBadge = document.getElementById('inv-kyc-badge');
-    kycBadge.textContent = isKYC ? '✓ KYC Verified' : '✕ Not KYC Verified';
-    kycBadge.className = 'badge ' + (isKYC ? 'bg-green' : 'bg-red');
-
-    set('inv-coupon-rate', (Number(couponRate)/100).toFixed(2) + '%');
-    set('inv-interval', secsToDuration(Number(interval)));
-    set('inv-grace', secsToDuration(Number(grace)));
-    set('inv-supply', ethers.formatEther(supply));
-    set('inv-escrow', ethers.formatEther(escrow) + ' ETH');
-    set('inv-holders', Number(holderCnt).toString());
-
-    // Withdrawals
-    await renderWithdrawals('inv', Number(withdrawCnt));
-    set('inv-withdrawal-count', Number(withdrawCnt).toString());
-
-  } catch(e) {
-    toast('Error loading data: ' + (e.reason || e.message), 'red');
-  } finally { loading(false); }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   ISSUER — load data
-   ─────────────────────────────────────────────────────────────────────── */
-async function loadIssuerData() {
-  if (!contract || !userAddress) return;
-  loading(true);
-  try {
-    const [
-      escrow, supply, trust, grade, holderCnt,
-      faceVal, couponRate, mat, lastCoupon, withdrawCnt
-    ] = await Promise.all([
-      contract.escrowBalance(),
-      contract.totalSupply(),
-      contract.trustScore(),
-      contract.trustGrade(),
-      contract.holderCount(),
-      contract.faceValue(),
-      contract.couponRateBps(),
-      contract.maturity(),
-      contract.lastCouponTime(),
-      contract.withdrawalCount()
-    ]);
-
-    set('iss-meta', shortAddr(userAddress));
-    set('iss-escrow', ethers.formatEther(escrow) + ' ETH');
-    set('iss-supply', ethers.formatEther(supply));
-    set('iss-holders', Number(holderCnt).toString());
-    setTrustUI('iss', Number(trust), grade);
-    set('iss-trust', Number(trust).toString());
-    set('iss-grade-sub', 'Grade ' + grade);
-
-    const nextDue = await contract.nextCouponDue();
-    set('next-coupon-due', new Date(Number(nextDue)*1000).toLocaleString());
-
-    // Coupon due calculation
-    const couponDue = (supply * faceVal * couponRate) / 10000n;
-    set('coupon-due-amount', ethers.formatEther(couponDue) + ' ETH');
-    set('coupon-escrow', ethers.formatEther(escrow) + ' ETH');
-    set('last-coupon', new Date(Number(lastCoupon)*1000).toLocaleString());
-
-  } catch(e) {
-    toast('Error loading issuer data: ' + (e.reason || e.message), 'red');
-  } finally { loading(false); }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   ADMIN — load data
-   ─────────────────────────────────────────────────────────────────────── */
-async function loadAdminData() {
-  if (!contract || !userAddress) return;
-  loading(true);
-  try {
-    const [
-      statusRaw, escrow, trust, grade, holderCnt,
-      faceVal, couponRate, mat, issuerAddr,
-      lastCoupon, supply, withdrawCnt
-    ] = await Promise.all([
-      contract.status(),
-      contract.escrowBalance(),
-      contract.trustScore(),
-      contract.trustGrade(),
-      contract.holderCount(),
-      contract.faceValue(),
-      contract.couponRateBps(),
-      contract.maturity(),
-      contract.issuer(),
-      contract.lastCouponTime(),
-      contract.totalSupply(),
-      contract.withdrawalCount()
-    ]);
-
-    const statusN = Number(statusRaw);
-    const statusEl = document.getElementById('adm-status');
-    statusEl.textContent = STATUS_LABELS[statusN];
-    statusEl.className = 'stat-val ' + (statusN===0?'c-green':statusN===2?'c-red':'c-gold');
-
-    set('adm-meta', shortAddr(userAddress) + ' · Full permissions');
-    set('adm-escrow', ethers.formatEther(escrow) + ' ETH');
-    set('adm-trust', Number(trust).toString());
-    set('adm-grade', 'Grade ' + grade);
-    set('adm-holders', Number(holderCnt).toString());
-    setTrustUI('adm', Number(trust), grade);
-
-    set('adm-facevalue', ethers.formatEther(faceVal) + ' ETH');
-    set('adm-coupon-rate', (Number(couponRate)/100).toFixed(2) + '%');
-    set('adm-maturity', new Date(Number(mat)*1000).toLocaleDateString());
-    set('adm-supply', ethers.formatEther(supply));
-    set('adm-issuer', shortAddr(issuerAddr));
-    set('adm-last-coupon', new Date(Number(lastCoupon)*1000).toLocaleString());
-
-    await renderWithdrawals('adm', Number(withdrawCnt));
-    set('adm-withdrawal-count', Number(withdrawCnt).toString());
-
-  } catch(e) {
-    toast('Error loading admin data: ' + (e.reason || e.message), 'red');
-  } finally { loading(false); }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Render Withdrawals
-   ─────────────────────────────────────────────────────────────────────── */
-async function renderWithdrawals(prefix, count) {
-  const tbody = document.getElementById(prefix + '-withdrawals-tbody');
-  if (count === 0) {
-    tbody.innerHTML = `<tr><td colspan="${prefix==='adm'?6:5}" style="text-align:center;color:var(--t2);padding:28px">No withdrawals on record</td></tr>`;
-    return;
-  }
-  const rows = [];
-  for (let i = 0; i < count; i++) {
-    const w = await contract.withdrawals(i);
-    const date = new Date(Number(w.timestamp)*1000).toLocaleDateString();
-    const amount = ethers.formatEther(w.amount);
-    const statusBadge = w.flagged
-      ? '<span class="badge bg-red">Flagged</span>'
-      : '<span class="badge bg-green">Disclosed</span>';
-    const flagBtn = prefix === 'adm'
-      ? `<td><button class="btn btn-red btn-sm" onclick="flagWithdrawalIdx(${i})">Flag</button></td>`
-      : '';
-    rows.push(`<tr><td style="color:var(--t2)">${i}</td><td>${date}</td><td style="color:var(--t0)">${amount} ETH</td><td>${w.reason}</td><td>${statusBadge}</td>${flagBtn}</tr>`);
-  }
-  tbody.innerHTML = rows.join('');
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   CONTRACT ACTIONS
-   ─────────────────────────────────────────────────────────────────────── */
-
-/* INVESTOR — transfer */
-async function transferTokens() {
-  const to  = document.getElementById('transfer-to').value.trim();
-  const amt = document.getElementById('transfer-amount').value.trim();
-  if (!to || !amt) return toast('Fill in both fields.', 'warn');
-  await txn(() => contract.transfer(to, BigInt(amt)), 'Transfer sent!', loadInvestorData);
-}
-
-/* INVESTOR — redeem */
-async function redeemBond() {
-  await txn(() => contract.redeem(), 'Redemption successful! ETH sent to your wallet.', loadInvestorData);
-}
-
-/* ISSUER — deposit */
-async function depositEscrow() {
-  const amt = document.getElementById('deposit-amount').value.trim();
-  if (!amt || isNaN(amt)) return toast('Enter a valid ETH amount.', 'warn');
-  const value = ethers.parseEther(amt);
-  await txn(() => contract.depositToEscrow({ value }), 'Deposit confirmed! Escrow updated.', loadIssuerData);
-}
-
-/* ISSUER — pay coupon */
-async function payCoupon() {
-  await txn(() => contract.payCoupon(), 'Coupon paid! Trust score updated.', loadIssuerData);
-}
-
-/* ISSUER — issue tokens */
-async function issueTokens() {
-  const to  = document.getElementById('issue-to').value.trim();
-  const amt = document.getElementById('issue-amount').value.trim();
-  if (!to || !amt) return toast('Fill in both fields.', 'warn');
-  await txn(() => contract.issue(to, BigInt(amt)), 'Tokens issued successfully!', loadIssuerData);
-}
-
-/* ISSUER — withdraw */
-async function withdrawFunds() {
-  const amt    = document.getElementById('withdraw-amount').value.trim();
-  const reason = document.getElementById('withdraw-reason').value.trim();
-  if (!amt || isNaN(amt)) return toast('Enter a valid ETH amount.', 'warn');
-  if (!reason) return toast('A reason is required.', 'warn');
-  const value = ethers.parseEther(amt);
-  await txn(() => contract.withdrawFunds(value, reason), 'Withdrawal complete. Investors notified on-chain. +5 trust.', loadIssuerData);
-}
-
-/* ADMIN — approve KYC */
-async function approveKYC() {
-  const addr = document.getElementById('kyc-addr').value.trim();
-  if (!addr) return toast('Enter an address.', 'warn');
-  await txn(() => contract.approveKYC(addr), 'KYC approved for ' + shortAddr(addr), loadAdminData);
-}
-
-/* ADMIN — revoke KYC */
-async function revokeKYC() {
-  const addr = document.getElementById('kyc-addr').value.trim();
-  if (!addr) return toast('Enter an address.', 'warn');
-  await txn(() => contract.revokeKYC(addr), 'KYC revoked for ' + shortAddr(addr), loadAdminData);
-}
-
-/* ADMIN — check KYC */
-async function checkKYC() {
-  const addr = document.getElementById('kyc-check-addr').value.trim();
-  if (!addr) return toast('Enter an address.', 'warn');
-  loading(true);
-  try {
-    const ok = await contract.kyc(addr);
-    const el = document.getElementById('kyc-check-result');
-    el.style.display = 'inline-flex';
-    el.className = 'badge ' + (ok ? 'bg-green' : 'bg-red');
-    el.textContent = ok ? '✓ KYC Verified' : '✕ Not Verified';
-  } catch(e) {
-    toast('Error: ' + (e.reason || e.message), 'red');
-  } finally { loading(false); }
-}
-
-/* ADMIN — flag withdrawal */
-async function flagWithdrawal() {
-  const idx  = document.getElementById('flag-index').value.trim();
-  const note = document.getElementById('flag-note').value.trim();
-  if (idx === '') return toast('Enter a withdrawal index.', 'warn');
-  if (!note) return toast('Admin note is required.', 'warn');
-  await txn(() => contract.flagWithdrawal(Number(idx), note), 'Withdrawal flagged. Trust score −40.', loadAdminData);
-}
-
-async function flagWithdrawalIdx(idx) {
-  const note = prompt('Admin note for flagging withdrawal #' + idx + ':');
-  if (!note) return;
-  await txn(() => contract.flagWithdrawal(idx, note), 'Withdrawal #' + idx + ' flagged. Trust −40.', loadAdminData);
-}
-
-/* ADMIN — declare default */
-async function declareDefault() {
-  const confirmed = confirm('⚠️ Are you sure? This will permanently mark the bond as DEFAULTED.\n\nTrust score will drop by 150. This cannot be undone.');
-  if (!confirmed) return;
-  await txn(() => contract.markDefault(), 'Bond declared defaulted. Trust −150.', loadAdminData);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Transaction wrapper
-   ─────────────────────────────────────────────────────────────────────── */
-async function txn(fn, successMsg, onSuccess) {
-  if (!contract) return toast('Connect wallet first.', 'warn');
-  loading(true);
-  toast('Sending transaction…', 'info');
-  try {
-    const tx = await fn();
-    toast('Waiting for confirmation…', 'info');
-    await tx.wait();
-    toast(successMsg, 'green');
-    if (onSuccess) setTimeout(onSuccess, 1000);
-  } catch(e) {
-    const msg = e?.reason || e?.data?.message || e?.message || 'Transaction failed';
-    toast('Error: ' + msg, 'red');
-  } finally { loading(false); }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   UI Helpers
-   ─────────────────────────────────────────────────────────────────────── */
-function setTrustUI(prefix, score, grade) {
-  const pct = (score / 1000 * 100).toFixed(1);
-  const bar   = document.getElementById(prefix + '-trust-bar');
-  const num   = document.getElementById(prefix + '-trust-num');
-  const gbox  = document.getElementById(prefix + '-grade-box');
-  if (bar)  bar.style.width = pct + '%';
-  if (num)  num.textContent = score;
-  if (gbox) gbox.textContent = grade;
-  const col = score >= 700 ? 'var(--green)' : score >= 450 ? 'var(--gold)' : 'var(--red)';
-  if (num)  num.style.color = col;
-  if (gbox) { gbox.style.color = col; gbox.style.borderColor = col; gbox.style.background = col + '15'; }
-}
-
-function set(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-
-function shortAddr(a) {
-  return a ? a.slice(0,6) + '…' + a.slice(-4) : '—';
-}
-
-function secsToDuration(secs) {
-  if (secs >= 86400) return Math.floor(secs/86400) + ' days';
-  if (secs >= 3600)  return Math.floor(secs/3600) + ' hours';
-  if (secs >= 60)    return Math.floor(secs/60) + ' minutes';
-  return secs + ' seconds';
-}
-
-function loading(on) {
-  document.getElementById('loading-bar').classList.toggle('show', on);
-}
-
-/* Toast */
-function toast(msg, type = 'info') {
-  const icons = { green:'✓', red:'✕', warn:'⚠', info:'○' };
-  const colors = { green:'var(--green)', red:'var(--red)', warn:'var(--gold)', info:'var(--blue)' };
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.style.borderColor = colors[type] || colors.info;
-  el.innerHTML = `<span class="toast-icon" style="color:${colors[type]||colors.info}">${icons[type]||'○'}</span><span>${msg}</span>`;
-  const container = document.getElementById('toast-container');
-  container.appendChild(el);
-  setTimeout(() => {
-    el.classList.add('removing');
-    setTimeout(() => el.remove(), 260);
-  }, 4000);
-}
-</script>
+  <!-- ethers.js v5 — jsDelivr (primary) with unpkg fallback -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script>
+    if (typeof ethers === 'undefined') {
+      document.write('<script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"><\/script>');
+    }
+  </script>
+  <script src="app.js" defer></script>
 </body>
 </html>
